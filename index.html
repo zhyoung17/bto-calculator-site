@@ -617,7 +617,7 @@ select:focus {
   }
 }
 
-    </style>
+</style>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%230f766e'/%3E%3Cpath d='M16 50V24l16-10 16 10v26H36V36h-8v14H16z' fill='white'/%3E%3C/svg%3E">
   </head>
   <body>
@@ -669,7 +669,7 @@ select:focus {
               <span>Price of House</span>
               <div class="input-prefix">
                 <span>S$</span>
-                <input id="price" type="number" inputmode="decimal" min="0" step="1000" value="900000">
+                <input id="price" class="money-input" type="text" inputmode="decimal" value="900,000" data-money>
               </div>
             </label>
 
@@ -716,11 +716,11 @@ select:focus {
             <div class="field-pair">
               <label class="field">
                 <span>Applicant 1 OA CPF Value</span>
-                <input id="husbandCpf" type="number" inputmode="decimal" min="0" step="100" value="0">
+                <input id="husbandCpf" class="money-input" type="text" inputmode="decimal" value="0" data-money>
               </label>
               <label class="field">
                 <span>Applicant 2 OA CPF Value</span>
-                <input id="wifeCpf" type="number" inputmode="decimal" min="0" step="100" value="0">
+                <input id="wifeCpf" class="money-input" type="text" inputmode="decimal" value="0" data-money>
               </label>
             </div>
 
@@ -738,17 +738,17 @@ select:focus {
             <div class="field-pair">
               <label class="field">
                 <span>Applicant 1 Average Monthly Income</span>
-                <input id="husbandSalary" type="number" inputmode="decimal" min="0" step="100">
+                <input id="husbandSalary" class="money-input" type="text" inputmode="decimal" data-money>
               </label>
               <label class="field">
                 <span>Applicant 2 Average Monthly Income</span>
-                <input id="wifeSalary" type="number" inputmode="decimal" min="0" step="100">
+                <input id="wifeSalary" class="money-input" type="text" inputmode="decimal" data-money>
               </label>
             </div>
 
             <label class="field">
               <span>Estimated Renovation Fee</span>
-              <input id="reno" type="number" inputmode="decimal" min="0" step="1000">
+              <input id="reno" class="money-input" type="text" inputmode="decimal" data-money>
             </label>
           </div>
         </form>
@@ -795,10 +795,10 @@ select:focus {
                 <strong id="wifeCpfKey">S$0</strong>
               </div>
             </div>
-            <div class="formula-grid" aria-label="Income calculation formulas">
+            <div class="formula-grid" aria-label="Income calculation results">
               <div>
-                <span>CPF OA Formula</span>
-                <strong id="cpfFormula">Monthly OA = min(income, S$8,000) x 23%</strong>
+                <span>Total CPF to Key-Collection</span>
+                <strong id="cpfFormula">S$0</strong>
               </div>
               <div>
                 <span>Grant Formula</span>
@@ -979,12 +979,29 @@ function money(value, cents = false) {
   const safe = Number.isFinite(value) ? value : 0;
   const sign = safe < 0 ? "-" : "";
   const amount = Math.abs(safe);
-  return `${sign}S${cents ? decimalNumber.format(amount) : wholeNumber.format(amount)}`;
+  return `${sign}S$${cents ? decimalNumber.format(amount) : wholeNumber.format(amount)}`;
 }
 
 function readNumber(id) {
-  const value = Number($(id).value);
+  const value = Number($(id).value.replace(/,/g, ""));
   return Number.isFinite(value) ? value : 0;
+}
+
+function formatMoneyInputValue(value) {
+  const cleaned = value.replace(/[^\d.]/g, "");
+  const [integerPart, ...decimalParts] = cleaned.split(".");
+  const hasDecimal = cleaned.includes(".");
+  const normalizedInteger = integerPart.replace(/^0+(?=\d)/, "");
+  const formattedInteger = normalizedInteger ? wholeNumber.format(Number(normalizedInteger)) : "";
+  const decimal = decimalParts.join("").slice(0, 2);
+
+  if (!formattedInteger && !hasDecimal) return "";
+  if (hasDecimal) return `${formattedInteger || "0"}.${decimal}`;
+  return formattedInteger || "0";
+}
+
+function formatMoneyInput(input) {
+  input.value = formatMoneyInputValue(input.value);
 }
 
 function selectedRoomType() {
@@ -1139,7 +1156,7 @@ function render() {
   $("wifeMonthlyCpf").textContent = money(result.wifeMonthlyCpf, true);
   $("husbandCpfKey").textContent = money(result.husbandCpfKey);
   $("wifeCpfKey").textContent = money(result.wifeCpfKey);
-  $("cpfFormula").textContent = `Applicant 1: min(${money(result.husbandSalary)}, S$8,000) x 23% = ${money(result.husbandMonthlyCpf, true)} monthly; ${result.husbandMonthsToKeys} months to keys = ${money(result.husbandCpfKey)}. Applicant 2: min(${money(result.wifeSalary)}, S$8,000) x 23% = ${money(result.wifeMonthlyCpf, true)} monthly; ${result.wifeMonthsToKeys} months to keys = ${money(result.wifeCpfKey)}.`;
+  $("cpfFormula").textContent = money(result.husbandCpfKey + result.wifeCpfKey);
 
   $("ballotTotal").textContent = money(result.optionFee);
   $("optionFee").textContent = money(result.optionFee);
@@ -1169,13 +1186,13 @@ function render() {
 
 function resetForm() {
   $("student").value = defaults.student;
-  $("price").value = defaults.price;
+  $("price").value = wholeNumber.format(defaults.price);
   $("completion").value = defaults.completion;
   document.querySelector(`input[name="roomType"][value="${defaults.roomType}"]`).checked = true;
   $("plh").value = defaults.plh;
   $("plhPct").value = defaults.plhPct;
-  $("husbandCpf").value = defaults.husbandCpf;
-  $("wifeCpf").value = defaults.wifeCpf;
+  $("husbandCpf").value = wholeNumber.format(defaults.husbandCpf);
+  $("wifeCpf").value = wholeNumber.format(defaults.wifeCpf);
   $("husbandStart").value = defaults.husbandStart;
   $("wifeStart").value = defaults.wifeStart;
   $("husbandSalary").value = defaults.husbandSalary;
@@ -1185,7 +1202,10 @@ function resetForm() {
 }
 
 document.querySelectorAll("input, select").forEach((control) => {
-  control.addEventListener("input", render);
+  control.addEventListener("input", () => {
+    if (control.matches("[data-money]")) formatMoneyInput(control);
+    render();
+  });
   control.addEventListener("change", render);
 });
 
@@ -1194,6 +1214,6 @@ $("printBtn").addEventListener("click", () => window.print());
 
 render();
 
-    </script>
+</script>
   </body>
 </html>
