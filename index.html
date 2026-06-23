@@ -517,6 +517,11 @@ select:focus {
   white-space: nowrap;
 }
 
+.line-row.is-credit span,
+.line-row.is-credit strong {
+  color: var(--muted);
+}
+
 .fine-print {
   margin: 0;
   color: var(--muted);
@@ -827,7 +832,17 @@ select:focus {
               </div>
               <div class="line-row">
                 <span>Signing of Lease Agreement</span>
-                <em>CPF/Cash</em>
+                <em>Required</em>
+                <strong id="firstDownpaymentRequired">S$0</strong>
+              </div>
+              <div class="line-row is-credit">
+                <span>OA CPF Used for Lease</span>
+                <em>CPF</em>
+                <strong id="leaseCpfUsed">S$0</strong>
+              </div>
+              <div class="line-row">
+                <span>Cash Shortfall After CPF</span>
+                <em>Cash</em>
                 <strong id="firstDownpayment">S$0</strong>
               </div>
               <div class="line-row">
@@ -849,7 +864,17 @@ select:focus {
               </div>
               <div class="line-row">
                 <span>Key Collection Second Downpayment</span>
-                <em>CPF/Cash</em>
+                <em>Required</em>
+                <strong id="secondDownpaymentRequired">S$0</strong>
+              </div>
+              <div class="line-row is-credit">
+                <span>CPF Used by Key Collection</span>
+                <em>CPF</em>
+                <strong id="keyCpfUsed">S$0</strong>
+              </div>
+              <div class="line-row">
+                <span>Second Downpayment Cash Shortfall</span>
+                <em>Cash</em>
                 <strong id="secondDownpayment">S$0</strong>
               </div>
               <div class="line-row">
@@ -1092,13 +1117,17 @@ function calculate() {
   const optionFee = roomType === "3 ROOM" ? 1000 : 2000;
   const firstRate = student === "YES" ? 0.025 : 0.05;
   const currentCpf = husbandCpf + wifeCpf;
-  const firstDownpayment = Math.max(0, firstRate * finalPrice - currentCpf);
+  const firstDownpaymentRequired = firstRate * finalPrice;
+  const leaseCpfUsed = Math.min(currentCpf, firstDownpaymentRequired);
+  const firstDownpayment = Math.max(0, firstDownpaymentRequired - currentCpf);
   const stampDuty = buyerStampDuty(price);
   const leaseTotal = Math.max(0, firstDownpayment - optionFee) + stampDuty;
 
-  const cpfLeftAfterLease = Math.max(0, currentCpf - firstRate * finalPrice);
+  const cpfLeftAfterLease = Math.max(0, currentCpf - firstDownpaymentRequired);
   const secondDownpaymentRaw = Math.max(0, (0.25 - firstRate) * finalPrice);
-  const secondDownpayment = Math.max(0, secondDownpaymentRaw - cpfLeftAfterLease - husbandCpfKey - wifeCpfKey);
+  const keyCpfAvailable = cpfLeftAfterLease + husbandCpfKey + wifeCpfKey;
+  const keyCpfUsed = Math.min(keyCpfAvailable, secondDownpaymentRaw);
+  const secondDownpayment = Math.max(0, secondDownpaymentRaw - keyCpfAvailable);
   const escrow = finalPrice > 0 ? 38.3 : 0;
   const survey = surveyFee(roomType, finalPrice);
   const assignmentDuty = Math.min(500, Math.max(0, 0.004 * 0.75 * finalPrice));
@@ -1118,13 +1147,16 @@ function calculate() {
     escrow,
     finalPrice,
     firstDownpayment,
+    firstDownpaymentRequired,
     homeProtection,
     husbandCpfKey,
     husbandMonthsToKeys,
     husbandMonthlyCpf,
     husbandSalary,
+    keyCpfUsed,
     keyTotal,
     leaseTotal,
+    leaseCpfUsed,
     legalFees,
     loanTotal,
     monthlyFire,
@@ -1133,6 +1165,7 @@ function calculate() {
     plhGrant,
     reno,
     secondDownpayment,
+    secondDownpaymentRaw,
     stampDuty,
     survey,
     totalGrants,
@@ -1161,11 +1194,15 @@ function render() {
   $("ballotTotal").textContent = money(result.optionFee);
   $("optionFee").textContent = money(result.optionFee);
   $("leaseTotal").textContent = money(result.leaseTotal);
+  $("firstDownpaymentRequired").textContent = money(result.firstDownpaymentRequired);
+  $("leaseCpfUsed").textContent = money(-result.leaseCpfUsed);
   $("firstDownpayment").textContent = money(result.firstDownpayment);
   $("optionFeeCredit").textContent = money(-result.optionFee);
   $("stampDuty").textContent = money(result.stampDuty);
 
   $("keyTotal").textContent = money(result.keyTotal, true);
+  $("secondDownpaymentRequired").textContent = money(result.secondDownpaymentRaw);
+  $("keyCpfUsed").textContent = money(-result.keyCpfUsed);
   $("secondDownpayment").textContent = money(result.secondDownpayment);
   $("renoOut").textContent = money(result.reno);
   $("escrow").textContent = money(result.escrow, true);
