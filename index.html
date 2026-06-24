@@ -295,6 +295,17 @@ select:focus {
   color: var(--muted);
 }
 
+.input-suffix.is-disabled {
+  background: #eef2ef;
+  color: var(--muted);
+}
+
+.input-suffix.is-disabled input,
+.input-suffix.is-disabled span {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
 .segmented {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -712,7 +723,7 @@ select:focus {
               <label class="field">
                 <span>PLH Percentage</span>
                 <div class="input-suffix">
-                  <input id="plhPct" type="number" inputmode="decimal" min="0" max="100" step="0.1" value="8">
+                  <input id="plhPct" type="text" inputmode="decimal" value="-">
                   <span>%</span>
                 </div>
               </label>
@@ -802,12 +813,20 @@ select:focus {
             </div>
             <div class="formula-grid" aria-label="Income calculation results">
               <div>
-                <span>Total CPF to Key-Collection</span>
-                <strong id="cpfFormula">S$0</strong>
+                <span>CPF Left After Lease</span>
+                <strong id="cpfLeftAfterLease">S$0</strong>
               </div>
               <div>
-                <span>Grant Formula</span>
-                <strong id="grantFormula">Enhanced CPF Grant uses combined average monthly income.</strong>
+                <span>Projected CPF Before Keys</span>
+                <strong id="projectedCpfToKeys">S$0</strong>
+              </div>
+              <div>
+                <span>CPF Available for Key Downpayment</span>
+                <strong id="keyCpfAvailable">S$0</strong>
+              </div>
+              <div>
+                <span>Enhanced CPF Grant</span>
+                <strong id="grantFormula">S$0</strong>
               </div>
             </div>
           </section>
@@ -1029,6 +1048,25 @@ function formatMoneyInput(input) {
   input.value = formatMoneyInputValue(input.value);
 }
 
+function togglePlhPercentage() {
+  const plhPct = $("plhPct");
+  const isPlh = $("plh").value === "YES";
+
+  if (isPlh) {
+    plhPct.disabled = false;
+    plhPct.value = plhPct.dataset.lastValue || defaults.plhPct;
+    plhPct.parentElement.classList.remove("is-disabled");
+    return;
+  }
+
+  if (plhPct.value && plhPct.value !== "-") {
+    plhPct.dataset.lastValue = plhPct.value;
+  }
+  plhPct.value = "-";
+  plhPct.disabled = true;
+  plhPct.parentElement.classList.add("is-disabled");
+}
+
 function selectedRoomType() {
   return document.querySelector('input[name="roomType"]:checked').value;
 }
@@ -1094,7 +1132,7 @@ function calculate() {
   const completion = $("completion").value;
   const roomType = selectedRoomType();
   const plh = $("plh").value;
-  const plhPct = readNumber("plhPct") / 100;
+  const plhPct = plh === "YES" ? readNumber("plhPct") / 100 : 0;
   const husbandCpf = readNumber("husbandCpf");
   const wifeCpf = readNumber("wifeCpf");
   const husbandSalary = readNumber("husbandSalary");
@@ -1125,7 +1163,8 @@ function calculate() {
 
   const cpfLeftAfterLease = Math.max(0, currentCpf - firstDownpaymentRequired);
   const secondDownpaymentRaw = Math.max(0, (0.25 - firstRate) * finalPrice);
-  const keyCpfAvailable = cpfLeftAfterLease + husbandCpfKey + wifeCpfKey;
+  const projectedCpfToKeys = husbandCpfKey + wifeCpfKey;
+  const keyCpfAvailable = cpfLeftAfterLease + projectedCpfToKeys;
   const keyCpfUsed = Math.min(keyCpfAvailable, secondDownpaymentRaw);
   const secondDownpayment = Math.max(0, secondDownpaymentRaw - keyCpfAvailable);
   const escrow = finalPrice > 0 ? 38.3 : 0;
@@ -1153,8 +1192,10 @@ function calculate() {
     husbandMonthsToKeys,
     husbandMonthlyCpf,
     husbandSalary,
+    keyCpfAvailable,
     keyCpfUsed,
     keyTotal,
+    cpfLeftAfterLease,
     leaseTotal,
     leaseCpfUsed,
     legalFees,
@@ -1163,6 +1204,7 @@ function calculate() {
     monthlyRepayment,
     optionFee,
     plhGrant,
+    projectedCpfToKeys,
     reno,
     secondDownpayment,
     secondDownpaymentRaw,
@@ -1189,7 +1231,9 @@ function render() {
   $("wifeMonthlyCpf").textContent = money(result.wifeMonthlyCpf, true);
   $("husbandCpfKey").textContent = money(result.husbandCpfKey);
   $("wifeCpfKey").textContent = money(result.wifeCpfKey);
-  $("cpfFormula").textContent = money(result.husbandCpfKey + result.wifeCpfKey);
+  $("cpfLeftAfterLease").textContent = money(result.cpfLeftAfterLease);
+  $("projectedCpfToKeys").textContent = money(result.projectedCpfToKeys);
+  $("keyCpfAvailable").textContent = money(result.keyCpfAvailable);
 
   $("ballotTotal").textContent = money(result.optionFee);
   $("optionFee").textContent = money(result.optionFee);
@@ -1218,7 +1262,7 @@ function render() {
   $("ecgGrant").textContent = money(result.ecgGrant);
   $("plhGrant").textContent = money(result.plhGrant);
   $("totalIncome").textContent = money(result.totalIncome);
-  $("grantFormula").textContent = `Combined average monthly income ${money(result.totalIncome)} maps to Enhanced CPF Grant ${money(result.ecgGrant)}.`;
+  $("grantFormula").textContent = money(result.ecgGrant);
 }
 
 function resetForm() {
@@ -1228,6 +1272,7 @@ function resetForm() {
   document.querySelector(`input[name="roomType"][value="${defaults.roomType}"]`).checked = true;
   $("plh").value = defaults.plh;
   $("plhPct").value = defaults.plhPct;
+  $("plhPct").dataset.lastValue = defaults.plhPct;
   $("husbandCpf").value = wholeNumber.format(defaults.husbandCpf);
   $("wifeCpf").value = wholeNumber.format(defaults.wifeCpf);
   $("husbandStart").value = defaults.husbandStart;
@@ -1235,20 +1280,29 @@ function resetForm() {
   $("husbandSalary").value = defaults.husbandSalary;
   $("wifeSalary").value = defaults.wifeSalary;
   $("reno").value = defaults.reno;
+  togglePlhPercentage();
   render();
 }
 
 document.querySelectorAll("input, select").forEach((control) => {
   control.addEventListener("input", () => {
     if (control.matches("[data-money]")) formatMoneyInput(control);
+    if (control.id === "plhPct") {
+      control.value = control.value.replace(/[^\d.]/g, "");
+      if (control.value) control.dataset.lastValue = control.value;
+    }
     render();
   });
-  control.addEventListener("change", render);
+  control.addEventListener("change", () => {
+    if (control.id === "plh") togglePlhPercentage();
+    render();
+  });
 });
 
 $("resetBtn").addEventListener("click", resetForm);
 $("printBtn").addEventListener("click", () => window.print());
 
+togglePlhPercentage();
 render();
 
 </script>
